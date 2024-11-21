@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equity Research Bot</title>
+    <link rel="stylesheet" href="/static/index.css">
+</head>
+<body>
+    <div class="container">
+        <div class="sidebar">
+            <h3>Load Articles</h3>
+            <textarea id="urlInput" placeholder="Enter URLs (one per line)" rows="6"></textarea>
+            <button id="processUrlsButton">Process URLs</button>
+            <p id="urlStatus" class="status-message"></p>
+        </div>
+        <div class="main">
+            <h1>Ask a Question</h1>
+            <textarea id="questionInput" placeholder="Enter your question" rows="3"></textarea>
+            <button id="askButton">Ask</button>
+            <div id="loading" class="loading" style="display: none;">Processing...</div>
+            <div class="response">
+                <h3>Response:</h3>
+                <p id="response">No response yet.</p>
+                <h3>Source:</h3>
+                <a id="context" href="#" target="_blank" style="display: none;">Click here for the source</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Show loading spinner
+        function toggleLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // Functionality for processing URLs
+        document.getElementById("processUrlsButton").addEventListener("click", async () => {
+            const urls = document.getElementById("urlInput").value.split("\n").filter(url => url.trim() !== "");
+            const statusMessage = document.getElementById("urlStatus");
+
+            if (urls.length === 0) {
+                statusMessage.textContent = "Please enter at least one URL.";
+                statusMessage.style.color = "red";
+                return;
+            }
+
+            statusMessage.textContent = "Processing URLs...";
+            statusMessage.style.color = "blue";
+
+            try {
+                const response = await fetch("/load_urls", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ urls }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                console.log(result);
+
+                if (result.error) {
+                    statusMessage.textContent = `Error: ${result.error}`;
+                    statusMessage.style.color = "red";
+                } else {
+                    statusMessage.textContent = "URLs processed successfully!";
+                    statusMessage.style.color = "green";
+                }
+            } catch (error) {
+                console.error("Error processing URLs:", error);
+                statusMessage.textContent = "Failed to process URLs. Please try again.";
+                statusMessage.style.color = "red";
+            }
+        });
+
+        // Functionality for asking a question
+        document.getElementById("askButton").addEventListener("click", async () => {
+            const question = document.getElementById('questionInput').value;
+            const responseElement = document.getElementById('response');
+            const contextElement = document.getElementById('context');
+
+            if (!question) {
+                alert("Please enter a question.");
+                return;
+            }
+
+            toggleLoading(true); // Show loading spinner
+            responseElement.innerText = "Fetching answer...";
+            contextElement.style.display = "none";
+
+            try {
+                const response = await fetch('/query', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ question })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Server Error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                responseElement.innerText = data.answer || "No answer found.";
+                
+                if (data.context && data.context !== "No source available.") {
+                    contextElement.href = data.context;
+                    contextElement.textContent = "Click here for the source";
+                    contextElement.style.display = "block";
+                } else {
+                    contextElement.style.display = "none";
+                }
+            } catch (err) {
+                console.error("Error fetching the answer:", err);
+                responseElement.innerText = "An error occurred while fetching the answer.";
+            } finally {
+                toggleLoading(false); // Hide loading spinner
+            }
+        });
+    </script>
+</body>
+</html>
